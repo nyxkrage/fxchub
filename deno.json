@@ -1,0 +1,21 @@
+{
+  "imports": {
+    "hono": "jsr:@hono/hono@^4.4.7",
+    "handlebars": "npm:handlebars@^4.7.8"
+  },
+  "tasks": {
+    "start": "deno serve --allow-net --port 7878 main.ts"
+  },
+  "compilerOptions": {
+    "jsx": "precompile",
+    "jsxImportSource": "hono/jsx"
+  },
+  "deploy": {
+    "project": "8898f667-aedf-4b49-92aa-61bbf8f14896",
+    "exclude": [
+      "**/node_modules"
+    ],
+    "include": [],
+    "entrypoint": "main.ts"
+  }
+}
