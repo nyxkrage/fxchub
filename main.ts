@@ -9,7 +9,7 @@ const template = Handlebars.compile(`
     <meta property="og:title" content="{{char}} by {{creator}} ({{tokens}} tokens, {{likes}} likes)" />
     <meta property="og:description" content="{{description}}" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://f56eacc3bae462cff9d32bbb6a10921e.serveo.net/images/{{creator}}/{{character}}.png" />
+    <meta property="og:image" content="https://fxchub.ai/images/{{creator}}/{{character}}.png" />
     <meta name="twitter:card" content="summary_large_image">
     <meta property="og:url" content="{{url}}" />
   </head>
@@ -64,20 +64,38 @@ app.get('/characters/:creator/:character', async (c) => {
   }
 
   const url = `https://chub.ai/characters/${creator}/${character}`
-  const r = await fetch(`https://api.chub.ai/api/characters/${creator}/${character}?full=true`, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:126.0) Gecko/20100101 Firefox/126.0"
-    }
-  }).then(r => r.json())
+  let char_obj
+  try {
+    // cloudflare proxy bypass
+    const response = await fetch("http://pid1.sh:8191/v1", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("CF_KEY") ?? "CF_KEY_HERE"}`
+      },
+      body: JSON.stringify({
+        cmd: "request.get",
+        url: `https://api.chub.ai/api/characters/${creator}/${character}?full=true`,
+        timeout: 6000,
+      })
+    });
+    char_obj = await response.json()
+    char_obj = char_obj.solution.response as string
+    char_obj = "{" + char_obj.split("}").slice(0, -1).join("}").split("{").slice(1).join("{") + "}"
+    char_obj = JSON.parse(char_obj)
+  } catch (error) {
+    console.error(error);
+    return c.status(500)
+  }
 
   const html = template({
     url,
-    char: r.node.name,
+    char: char_obj.node.name,
     creator,
     character,
-    likes: r.node.n_favorites,
-    description: r.node.tagline,
-    tokens: JSON.parse(r.node.labels.find(label => label.title === "TOKEN_COUNTS").description).total
+    likes: char_obj.node.n_favorites,
+    description: char_obj.node.tagline,
+    tokens: JSON.parse(char_obj.node.labels.find(label => label.title === "TOKEN_COUNTS").description).total
   })
 
   return c.html(html)
@@ -88,8 +106,12 @@ app.get("/images/:creator/:character", (c) => {
   character = character.replace(/\.[^/.]+$/, "");
 
   return stream(c, async (stream) => {
-    const body = await fetch(`https://avatars.charhub.io/avatars/${creator}/${character}/chara_card_v2.png`).then(r => r.body)
-    await stream.pipe(body!)
+    const response = await fetch(`https://avatars.charhub.io/avatars/${creator}/${character}/chara_card_v2.png`)
+    if (response.status !== 200) {
+      console.error(response)
+      return c.status(500);
+    }
+    await stream.pipe(response.body!)
   })
 })
 
